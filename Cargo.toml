@@ -11,3 +11,11 @@ embedded-graphics = "0.8.1"
 gc9a01-rs = "0.1.0"
 profont = "0.7.0"
 rppal = { version = "0.17.0", features = ["hal"] }
+
+
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
+
+[[bench]]
+name = "my_benchmark"
+harness = false
