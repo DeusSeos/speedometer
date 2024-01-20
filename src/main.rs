@@ -1,14 +1,15 @@
-use std::time::Duration;
+use std::{char, time::Duration};
 
 use embedded_graphics::{
     draw_target::DrawTarget,
-    mono_font::{ascii::{FONT_10X20, FONT_6X10, FONT_6X13_BOLD}, MonoTextStyle},
+    mono_font::{ascii::{FONT_10X20, FONT_6X10, FONT_6X13_BOLD}, iso_8859_15::FONT_10X20, MonoTextStyle},
     pixelcolor::Rgb565,
     prelude::*,
     primitives::{Circle, Line, PrimitiveStyle},
     text::Text,
 };
 
+use profont::PROFONT_24_POINT;
 use gc9a01::{
     display::DisplayResolution240x240,
     mode::{BufferedGraphics, DisplayConfiguration},
@@ -37,7 +38,7 @@ fn set_brightness(bl: &mut Pwm, brightness: u8) -> Result<(), anyhow::Error> {
 }
 
 // Replace `Display` with the appropriate type for your specific display
-fn draw_speedometer<Display>(display: &mut Display, speed: u32) -> Result<(), Display::Error>
+fn draw_speedometer<Display>(display: &mut Display, speed: f32) -> Result<(), Display::Error>
 where
     Display: DrawTarget<Color = Rgb565>,
 {
@@ -58,6 +59,8 @@ where
     let start_angle = std::f32::consts::PI;
     let tick_length = 20;
     let text_style = MonoTextStyle::new(&FONT_6X13_BOLD, Rgb565::WHITE);
+    let unit_text_style = MonoTextStyle::new(&FONT_10X20, Rgb565::WHITE);
+    let speed_text_style = MonoTextStyle::new(&PROFONT_24_POINT, Rgb565::WHITE);
 
     // Draw speed markings and numbers
     for i in 0..=12 {
@@ -96,9 +99,9 @@ where
             Text::new( &format!("{:2}", number), text_pos, text_style, ) .draw(display)?; } }
 
     // Calculate needle position based on speed
-    let angle = speed_to_angle(speed);
+    let angle = speed_to_angle(speed, start_angle);
     let needle_end = center
-        - Point::new(
+        + Point::new(
             (angle.cos() * (radius - 20) as f32) as i32,
             (angle.sin() * (radius - 20) as f32) as i32,
         );
@@ -108,17 +111,33 @@ where
         .into_styled(PrimitiveStyle::with_stroke(Rgb565::RED, 2))
         .draw(display)?;
 
+    
     // Display speed as text
-    let speed_text = format!("{:3} km/h", speed);
-    let text_pos = Point::new(90, 110) + Point::new(10, 10); // Adjusted position
-    Text::new(&speed_text, text_pos, text_style) .draw(display)?;
+    let speed_text = format!("{:3}", speed);
+    let character_size = speed_text_style.font.character_size;
+    let text_width = speed_text.len() as i32 * character_size.width as i32;
+    let text_offset = Point::new((text_width / 2) as i32, (character_size.height / 2) as i32);
+    let additional_offset = Point::new(1, 40); // Your adjusted offset
+    let text_pos = center - text_offset + additional_offset;
+    Text::new(&speed_text, text_pos, speed_text_style) .draw(display)?;
+
+    // Display unit as text
+    let speed_text = format!("mi/hr");
+    let character_size = unit_text_style.font.character_size;
+    let text_width = speed_text.len() as i32 * character_size.width as i32;
+    let text_offset = Point::new((text_width / 2) as i32, (character_size.height / 2) as i32);
+    let additional_offset = Point::new(1, 70); // Your adjusted offset
+    let text_pos = center - text_offset + additional_offset;
+    Text::new(&speed_text, text_pos, unit_text_style) .draw(display)?;
+
 
     Ok(())
 }
 
-fn speed_to_angle(speed: u32) -> f32 {
-    // Convert speed to an angle for the needle
-    std::f32::consts::PI * speed as f32 / 240.0
+fn speed_to_angle(speed: f32, start_angle: f32) -> f32 {
+    // Convert speed to an angle for the needle 
+    // using 960 = 120 * 8 giving us more angles to work with
+    ((8.0*speed)/960.0) * std::f32::consts::PI + start_angle
 }
 
 fn main() {
@@ -184,9 +203,13 @@ fn main() {
 
     set_brightness(&mut bl, 255).expect("Unable to set brightness");
 
+    // set speed to 0
+    let mut speed = 0.0;
+
     loop {
         display_driver.clear();
-        draw_speedometer(&mut display_driver, 0).ok();
+        draw_speedometer(&mut display_driver, speed).ok();
         display_driver.flush().ok();
+        speed += 1.0;
     }
 }

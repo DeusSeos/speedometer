@@ -9,4 +9,5 @@ edition = "2021"
 anyhow = "1.0.79"
 embedded-graphics = "0.8.1"
 gc9a01-rs = "0.1.0"
+profont = "0.7.0"
 rppal = { version = "0.17.0", features = ["hal"] }
