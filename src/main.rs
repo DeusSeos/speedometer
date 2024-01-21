@@ -1,14 +1,15 @@
-use std::time::{Duration, Instant};
+use std::{time::{Duration, Instant}, fs, env};
+use notify::{RecommendedWatcher, Watcher, RecursiveMode, Config, event::{DataChange, ModifyKind}, EventKind};
+use std::sync::mpsc::channel;
 
 use embedded_graphics::{
     draw_target::DrawTarget,
     mono_font::{ascii::{FONT_10X20, FONT_6X13_BOLD}, MonoTextStyle},
     pixelcolor::Rgb565,
     prelude::*,
-    primitives::{Circle, Line, PrimitiveStyle, Styled},
-    text::Text, image::{ImageRawBE, ImageRaw, Image},
+    primitives::{Circle, Line, PrimitiveStyle},
+    text::Text,
 };
-
 use profont::PROFONT_24_POINT;
 use gc9a01::{
     display::DisplayResolution240x240,
@@ -281,8 +282,8 @@ fn set_brightness(bl: &mut Pwm, brightness: u8) -> Result<(), anyhow::Error> {
 fn draw_speedometer<Display>(
     display: &mut Display, 
     speed: f32,
-    circle:
-    Styled<Circle, PrimitiveStyle<Rgb565>>, 
+    circle: Circle,
+    circle_style: PrimitiveStyle<Rgb565>,
     text_style: MonoTextStyle<'_, Rgb565>, 
     speed_text_style: MonoTextStyle<'_, Rgb565>, 
     unit_text_style: MonoTextStyle<'_, Rgb565>
@@ -290,8 +291,8 @@ fn draw_speedometer<Display>(
 where
     Display: DrawTarget<Color = Rgb565>,
 {
-    let function_now = Instant::now();
-    let mut now = Instant::now();
+    // let function_now = Instant::now();
+    // let mut now = Instant::now();
 
     // Constants and precomputed values
     const PI: f32 = std::f32::consts::PI;
@@ -307,58 +308,58 @@ where
     const DIAMETER: u32 = RADIUS as u32 * 2;
     const TOP_LEFT: Point = Point::new(8, 8);
 
-    let mut elapsed = now.elapsed();
-    println!("Precompute Elapsed: {:?}", elapsed);
+    // let mut elapsed = now.elapsed();
+    // println!("Precompute Elapsed: {:?}", elapsed);
 
     // now = Instant::now();
 
     // Draw the dial
-    // circle.draw(display)?;
+    circle.into_styled(circle_style).draw(display)?;
 
     // elapsed = now.elapsed();
     // println!("Circle Elapsed: {:?}", elapsed);
 
     // now = Instant::now();
 
-    // for i in 0..=12 {
-    //     let angle = (i as f32 * 2.0 * PI / 24.0) + START_ANGLE;
-    //     let outer_end = CENTER + Point::new(
-    //         (angle.cos() * RADIUS as f32) as i32,
-    //         (angle.sin() * RADIUS as f32) as i32,
-    //     );
-    //     let inner_end = CENTER + Point::new(
-    //         (angle.cos() * (RADIUS - TICK_LENGTH) as f32) as i32,
-    //         (angle.sin() * (RADIUS - TICK_LENGTH) as f32) as i32,
-    //     );
+    for i in 0..=12 {
+        let angle = (i as f32 * 2.0 * PI / 24.0) + START_ANGLE;
+        let outer_end = CENTER + Point::new(
+            (angle.cos() * RADIUS as f32) as i32,
+            (angle.sin() * RADIUS as f32) as i32,
+        );
+        let inner_end = CENTER + Point::new(
+            (angle.cos() * (RADIUS - TICK_LENGTH) as f32) as i32,
+            (angle.sin() * (RADIUS - TICK_LENGTH) as f32) as i32,
+        );
 
-    //     Line::new(outer_end, inner_end)
-    //         .into_styled(PrimitiveStyle::with_stroke(Rgb565::new(0, 191, 83), if i % 2 == 0 { 3 } else { 1 }))
-    //         .draw(display)?;
+        Line::new(outer_end, inner_end)
+            .into_styled(PrimitiveStyle::with_stroke(Rgb565::new(0, 191, 83), if i % 2 == 0 { 3 } else { 1 }))
+            .draw(display)?;
         
-    //     if i % 2 == 0 {
-    //         let number = i * 10;
-    //         let number_width = match number {
-    //             1..=9 => 6,
-    //             10..=99 => 12,
-    //             _ => 18,
-    //         };
-    //         let text_offset = Point::new((number_width / 2) as i32, 7); // Half of 13 (height)
-    //         let additional_offset = Point::new(1, 9);
-    //         let text_angle = angle + START_ANGLE;
-    //         let text_pos = CENTER - Point::new(
-    //             (text_angle.cos() * (RADIUS - (DEFAULT_TEXT_RADIUS + TICK_LENGTH)) as f32) as i32, 
-    //             (text_angle.sin() * (RADIUS - (DEFAULT_TEXT_RADIUS + TICK_LENGTH)) as f32) as i32
-    //         ) - text_offset + additional_offset;
-    //         Text::new(&format!("{:2}", number), text_pos, text_style).draw(display)?;
-    //     }
-    // }
+        if i % 2 == 0 {
+            let number = i * 10;
+            let number_width = match number {
+                1..=9 => 6,
+                10..=99 => 12,
+                _ => 18,
+            };
+            let text_offset = Point::new((number_width / 2) as i32, 7); // Half of 13 (height)
+            let additional_offset = Point::new(1, 9);
+            let text_angle = angle + START_ANGLE;
+            let text_pos = CENTER - Point::new(
+                (text_angle.cos() * (RADIUS - (DEFAULT_TEXT_RADIUS + TICK_LENGTH)) as f32) as i32, 
+                (text_angle.sin() * (RADIUS - (DEFAULT_TEXT_RADIUS + TICK_LENGTH)) as f32) as i32
+            ) - text_offset + additional_offset;
+            Text::new(&format!("{:2}", number), text_pos, text_style).draw(display)?;
+        }
+    }
 
     // elapsed = now.elapsed();
     // println!("Tick Elapsed: {:?}", elapsed);
 
     
 
-    now = Instant::now();
+    // now = Instant::now();
 
     // // Calculate needle position based on speed
     let angle = speed_to_angle(speed, START_ANGLE);
@@ -371,10 +372,10 @@ where
         .into_styled(PrimitiveStyle::with_stroke(Rgb565::RED, 2))
         .draw(display)?;
 
-    elapsed = now.elapsed();
-    println!("Needle Elapsed: {:?}", elapsed);
+    // elapsed = now.elapsed();
+    // println!("Needle Elapsed: {:?}", elapsed);
 
-    now = Instant::now();
+    // now = Instant::now();
 
     // Display speed as text
     let speed_text = format!("{}", speed);
@@ -391,11 +392,11 @@ where
     // Display unit as text
     Text::new(UNIT_TEXT, UNIT_TEXT_POS, unit_text_style).draw(display)?;
 
-    elapsed = now.elapsed();
-    println!("Text Elapsed: {:?}", elapsed);
+    // elapsed = now.elapsed();
+    // println!("Text Elapsed: {:?}", elapsed);
 
-    elapsed = function_now.elapsed();
-    println!("Function Elapsed: {:?}", elapsed);
+    // elapsed = function_now.elapsed();
+    // println!("Function Elapsed: {:?}", elapsed);
 
     Ok(())
 }
@@ -480,15 +481,14 @@ fn main() {
     const RADIUS: i32 = 112;
     const DIAMETER: u32 = RADIUS as u32 * 2;
     const TOP_LEFT: Point = Point::new(8, 8);
-    let circle = Circle::new(TOP_LEFT, DIAMETER)
-        .into_styled(circle_style);
+    const CIRCLE: Circle = Circle::new(TOP_LEFT, DIAMETER);
 
     // load the image
-    const DATA: &[u8] = include_bytes!("../assets/speedometer.raw");
+    // const DATA: &[u8] = include_bytes!("../assets/speedometer.raw");
 
-    const RAW_IMAGE : ImageRaw<'_, Rgb565> = ImageRawBE::<Rgb565>::new(DATA, 240);
+    // const RAW_IMAGE : ImageRaw<'_, Rgb565> = ImageRawBE::<Rgb565>::new(DATA, 240);
 
-    let image = Image::new(&RAW_IMAGE, Point::zero());
+    // let image = Image::new(&RAW_IMAGE, Point::zero());
 
     // loop {
     //     display_driver.clear();
@@ -496,16 +496,89 @@ fn main() {
     //     display_driver.flush().ok();
     // }
 
+    // use notify to watch for changes to data file located at /data/speed.txt
+   
+    // loop {
+    //     display_driver.clear();
+    //     let now = Instant::now();
+    //     // image.draw(&mut display_driver).expect("Unable to draw image");
+    //     draw_speedometer(&mut display_driver, speed, CIRCLE, circle_style, text_style, speed_text_style, unit_text_style).ok();
+    //     let elapsed = now.elapsed();
+    //     println!("Elapsed: {:?}", elapsed);
+    //     display_driver.flush().ok();
+    //     speed += 1.0;
+    // }
+
+    // Create a channel to receive the events.
+    let (tx, rx) = channel();
+
+    let path = std::path::Path::new("./data/speed.txt");
+
+    // Create a watcher object, delivering debounced events.
+    // The Duration::from_secs(10) is the debounce period.
+    let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
+
+    // Add a path to be watched. All files and directories at that path and
+    // below will be monitored for changes.
+    watcher.watch(&path, RecursiveMode::NonRecursive).unwrap();
 
     loop {
-        display_driver.clear();
-        
-        let now = Instant::now();
-        image.draw(&mut display_driver).expect("Unable to draw image");
-        draw_speedometer(&mut display_driver, speed, circle, text_style, speed_text_style, unit_text_style).ok();
-        let elapsed = now.elapsed();
-        println!("Elapsed: {:?}", elapsed);
-        display_driver.flush().ok();
-        speed += 1.0;
+        match rx.recv() {
+            Ok(result) => match result {
+                Ok(event) => match event.kind {
+                    EventKind::Modify(ModifyKind::Data(DataChange::Any)) => {
+                        // println!("data changed");
+                        // read the file and update the speed
+                        // set speed to 0
+                        match fs::read_to_string("./data/speed.txt") {
+                            Ok(s) => {
+                                // Check if the string is empty
+                                if s.is_empty() {
+                                    // println!("Speed is empty");
+                                    continue;
+                                }
+
+                                // println!("Speed: {}", s);
+                                speed = s.trim().parse::<f32>().unwrap();
+                                // update the display
+                                display_driver.clear();
+                                draw_speedometer(&mut display_driver, speed, CIRCLE, circle_style, text_style, speed_text_style, unit_text_style).ok();
+                                display_driver.flush().ok();
+                            },
+                            Err(e) => println!("Error reading file: {:?}", e),
+                        }
+
+                    },
+                    _ => continue,
+                },
+
+                Err(e) => println!("watch error: {:?}", e),
+
+            },
+            Err(e) => println!("watch error: {:?}", e),
     }
 }
+
+}
+
+
+// println!("data changed");
+// // read the file and update the speed
+// // set speed to 0
+// match fs::read_to_string("./data/speed.txt") {
+//     Ok(s) => {
+//         // Check if the string is empty
+//         if s.is_empty() {
+//             println!("Speed is empty");
+//             continue;
+//         }
+
+//         println!("Speed: {}", s);
+//         speed = s.trim().parse::<f32>().unwrap();
+//         // update the display
+//         display_driver.clear();
+//         draw_speedometer(&mut display_driver, speed, CIRCLE, circle_style, text_style, speed_text_style, unit_text_style).ok();
+//         display_driver.flush().ok();
+//     },
+//     Err(e) => println!("Error reading file: {:?}", e),
+// }
