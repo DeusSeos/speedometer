@@ -412,7 +412,7 @@ fn main() {
     // GC9A01 | Pi | SPI      | BCM
     //  DIN   | 19 | MOSI     | 10
     //  CLK   | 23 | SCLK     | 11
-    let spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 5_000_000, Mode::Mode0)
+    let spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 27_000_000, Mode::Mode0)
         .expect("Error setting SPI preferences");
 
     //setup the rest of the pins for Gc9a01 driver
@@ -544,6 +544,7 @@ fn main() {
                                 display_driver.clear();
                                 draw_speedometer(&mut display_driver, speed, CIRCLE, circle_style, text_style, speed_text_style, unit_text_style).ok();
                                 display_driver.flush().ok();
+                                // let elapsed = now.elapsed();
                             },
                             Err(e) => println!("Error reading file: {:?}", e),
                         }

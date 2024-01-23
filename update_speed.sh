@@ -8,6 +8,6 @@ while true; do
 
         # Wait for 20 milliseconds
         
-        sleep 0.1
+        sleep 0.02
     done
 done
